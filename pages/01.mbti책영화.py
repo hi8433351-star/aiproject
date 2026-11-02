@@ -1,102 +1,104 @@
-
+```python
+import streamlit as st
 import random
 
-# 페이지 설정
+# 페이지 설정은 다른 Streamlit 명령보다 먼저 실행
 st.set_page_config(
     page_title="MBTI 책 & 영화 추천",
     page_icon="📚",
     layout="centered"
 )
 
-# 제목
-st.title("📚 MBTI 맞춤 책 & 영화 추천 🎬")
+# -------------------------------
+# 1. 기본 화면
+# -------------------------------
+
+st.title("📚 MBTI 책 & 영화 추천 🎬")
 st.write("내 MBTI에 어울리는 책과 영화를 찾아보자!")
-st.write("취향에 맞는 단서를 선택하면 추천 결과가 바뀌어 😊")
+st.write("원하는 단서를 선택하면 취향에 맞는 작품을 추천해 줄게. 😊")
 
-# MBTI 목록
-mbti_list = [
-    "ISTJ", "ISFJ", "INFJ", "INTJ",
-    "ISTP", "ISFP", "INFP", "INTP",
-    "ESTP", "ESFP", "ENFP", "ENTP",
-    "ESTJ", "ESFJ", "ENFJ", "ENTJ"
-]
+# -------------------------------
+# 2. MBTI 데이터
+# -------------------------------
 
-# MBTI별 추천 성향
-mbti_info = {
-    "ISTJ": ("현실적이고 꼼꼼한 스타일 📝", "성장과 지식을 얻을 수 있는 작품"),
-    "ISFJ": ("따뜻하고 배려심 있는 스타일 💗", "마음이 따뜻해지는 작품"),
-    "INFJ": ("깊이 생각하는 스타일 🌙", "의미와 메시지가 있는 작품"),
-    "INTJ": ("분석적이고 계획적인 스타일 🧠", "생각할 거리를 주는 작품"),
-    "ISTP": ("호기심 많고 실용적인 스타일 🔧", "모험과 추리가 있는 작품"),
-    "ISFP": ("감성적이고 자유로운 스타일 🎨", "감성과 예술을 느낄 수 있는 작품"),
-    "INFP": ("상상력이 풍부한 스타일 🦋", "상상력과 감동이 있는 작품"),
-    "INTP": ("논리적이고 탐구하는 스타일 🔍", "새로운 지식을 얻는 작품"),
-    "ESTP": ("활동적이고 도전적인 스타일 🏃", "속도감과 재미가 있는 작품"),
-    "ESFP": ("밝고 사교적인 스타일 🎉", "유쾌하고 즐거운 작품"),
-    "ENFP": ("창의적이고 열정적인 스타일 ✨", "새로운 세계를 보여 주는 작품"),
-    "ENTP": ("아이디어가 많고 재치 있는 스타일 💡", "독특하고 흥미로운 작품"),
-    "ESTJ": ("체계적이고 책임감 있는 스타일 📌", "목표와 성취를 다룬 작품"),
-    "ESFJ": ("친절하고 사람을 좋아하는 스타일 🤝", "우정과 관계를 다룬 작품"),
-    "ENFJ": ("공감 능력이 뛰어난 스타일 🌷", "희망과 성장을 다룬 작품"),
-    "ENTJ": ("목표 지향적이고 자신감 있는 스타일 🚀", "도전과 성공을 다룬 작품")
+mbti_data = {
+    "ISTJ": ("꼼꼼하고 현실적인 스타일 📝", "자기계발"),
+    "ISFJ": ("따뜻하고 배려심 있는 스타일 💗", "감동"),
+    "INFJ": ("깊이 생각하는 스타일 🌙", "성장"),
+    "INTJ": ("분석적이고 논리적인 스타일 🧠", "과학"),
+    "ISTP": ("호기심 많고 실용적인 스타일 🔧", "추리"),
+    "ISFP": ("감성적이고 자유로운 스타일 🎨", "힐링"),
+    "INFP": ("상상력이 풍부한 스타일 🦋", "판타지"),
+    "INTP": ("탐구하고 분석하는 스타일 🔍", "과학"),
+    "ESTP": ("활동적이고 도전적인 스타일 🏃", "모험"),
+    "ESFP": ("밝고 활발한 스타일 🎉", "코미디"),
+    "ENFP": ("창의적이고 열정적인 스타일 ✨", "판타지"),
+    "ENTP": ("아이디어가 풍부한 스타일 💡", "추리"),
+    "ESTJ": ("체계적이고 책임감 있는 스타일 📌", "자기계발"),
+    "ESFJ": ("친절하고 사교적인 스타일 🤝", "감동"),
+    "ENFJ": ("공감 능력이 뛰어난 스타일 🌷", "성장"),
+    "ENTJ": ("목표 지향적인 스타일 🚀", "도전")
 }
 
-# 책 데이터
+# -------------------------------
+# 3. 책 데이터
+# -------------------------------
+
 books = [
     {
         "title": "아몬드",
         "author": "손원평",
-        "genre": "감동",
-        "mood": "따뜻한",
+        "genre": "성장",
+        "mood": "감동",
         "desc": "감정과 공감의 의미를 생각하게 하는 소설"
     },
     {
         "title": "완득이",
         "author": "김려령",
         "genre": "성장",
-        "mood": "유쾌한",
+        "mood": "유쾌함",
         "desc": "한 청소년의 성장과 주변 사람들의 이야기를 담은 소설"
     },
     {
         "title": "불편한 편의점",
         "author": "김호연",
         "genre": "감동",
-        "mood": "따뜻한",
+        "mood": "힐링",
         "desc": "편의점을 중심으로 다양한 사람들의 이야기가 펼쳐지는 소설"
     },
     {
         "title": "달러구트 꿈 백화점",
         "author": "이미예",
         "genre": "판타지",
-        "mood": "따뜻한",
+        "mood": "힐링",
         "desc": "꿈을 사고파는 신비로운 세계를 그린 소설"
     },
     {
         "title": "해리 포터와 마법사의 돌",
         "author": "J.K. 롤링",
         "genre": "판타지",
-        "mood": "모험적인",
+        "mood": "모험",
         "desc": "마법 학교에서 펼쳐지는 신비한 모험 이야기"
     },
     {
         "title": "어린 왕자",
         "author": "앙투안 드 생텍쥐페리",
         "genre": "성장",
-        "mood": "감성적인",
+        "mood": "감성",
         "desc": "사랑과 관계, 삶의 의미를 돌아보게 하는 이야기"
     },
     {
         "title": "데미안",
         "author": "헤르만 헤세",
         "genre": "성장",
-        "mood": "감성적인",
+        "mood": "생각할 거리",
         "desc": "자신만의 길을 찾아가는 과정을 다룬 소설"
     },
     {
         "title": "셜록 홈즈의 모험",
         "author": "아서 코난 도일",
         "genre": "추리",
-        "mood": "긴장감 있는",
+        "mood": "긴장감",
         "desc": "명탐정 셜록 홈즈의 흥미로운 추리 이야기"
     },
     {
@@ -117,33 +119,37 @@ books = [
         "title": "죽이고 싶은 아이",
         "author": "이꽃님",
         "genre": "추리",
-        "mood": "긴장감 있는",
+        "mood": "긴장감",
         "desc": "사건을 둘러싼 진실을 추적하는 청소년 소설"
     },
     {
         "title": "시간을 파는 상점",
         "author": "김선영",
         "genre": "판타지",
-        "mood": "감성적인",
+        "mood": "감성",
         "desc": "시간과 선택의 의미를 생각하게 하는 청소년 소설"
     }
 ]
 
-# 영화 데이터: 모두 2010년 이후 개봉작
+# -------------------------------
+# 4. 영화 데이터
+# 모든 영화는 2010년 이후 개봉작
+# -------------------------------
+
 movies = [
     {
         "title": "인사이드 아웃",
         "year": 2015,
         "genre": "애니메이션",
         "mood": "감동",
-        "desc": "마음속 감정들이 펼치는 이야기를 통해 감정의 소중함을 알려 주는 영화"
+        "desc": "마음속 감정들을 통해 감정의 소중함을 알려 주는 영화"
     },
     {
         "title": "코코",
         "year": 2017,
         "genre": "애니메이션",
         "mood": "감동",
-        "desc": "가족과 꿈, 음악의 의미를 전하는 따뜻한 애니메이션"
+        "desc": "가족과 꿈, 음악의 의미를 전하는 따뜻한 영화"
     },
     {
         "title": "스파이더맨: 뉴 유니버스",
@@ -217,263 +223,195 @@ movies = [
     }
 ]
 
-# MBTI별 추천 단서
-mbti_genre = {
-    "ISTJ": "자기계발",
-    "ISFJ": "감동",
-    "INFJ": "성장",
-    "INTJ": "과학",
-    "ISTP": "추리",
-    "ISFP": "감성",
-    "INFP": "판타지",
-    "INTP": "과학",
-    "ESTP": "액션",
-    "ESFP": "코미디",
-    "ENFP": "판타지",
-    "ENTP": "추리",
-    "ESTJ": "자기계발",
-    "ESFJ": "감동",
-    "ENFJ": "성장",
-    "ENTJ": "자기계발"
-}
+# -------------------------------
+# 5. MBTI 선택
+# -------------------------------
 
-# 입력 영역
 st.subheader("1️⃣ 나의 MBTI 선택하기")
 
 selected_mbti = st.selectbox(
-    "너의 MBTI는 뭐야?",
-    mbti_list
+    "너의 MBTI를 선택해 줘!",
+    list(mbti_data.keys())
 )
 
 st.info(
-    f"✨ {selected_mbti} 유형은 "
-    f"{mbti_info[selected_mbti][0]}!"
+    f"{selected_mbti}: {mbti_data[selected_mbti][0]}"
 )
 
-st.write(mbti_info[selected_mbti][1] + "을 추천해 줄게.")
+# -------------------------------
+# 6. 추천 단서 선택
+# -------------------------------
 
-st.divider()
-
-# 단서 선택
 st.subheader("2️⃣ 원하는 단서 선택하기")
 
-clue = st.selectbox(
+clue_options = [
+    "MBTI 맞춤 추천",
+    "감동",
+    "판타지",
+    "추리",
+    "성장",
+    "자기계발",
+    "과학",
+    "애니메이션",
+    "SF",
+    "액션",
+    "코미디",
+    "힐링",
+    "모험",
+    "유쾌함",
+    "생각할 거리"
+]
+
+selected_clue = st.selectbox(
     "어떤 작품을 보고 싶어?",
-    [
-        "MBTI 맞춤 추천",
-        "감동",
-        "판타지",
-        "추리",
-        "성장",
-        "자기계발",
-        "과학",
-        "애니메이션",
-        "SF",
-        "액션",
-        "코미디",
-        "힐링",
-        "모험",
-        "유쾌함",
-        "생각할 거리"
-    ]
+    clue_options
 )
 
-# 추천 버튼
-if st.button("🎁 책과 영화 추천받기", use_container_width=True):
+# -------------------------------
+# 7. 추천 함수
+# -------------------------------
 
-    # 선택한 단서에 맞는 책 필터링
+def recommend_books(mbti, clue):
     if clue == "MBTI 맞춤 추천":
-        book_clue = mbti_genre[selected_mbti]
+        target = mbti_data[mbti][1]
 
-        matched_books = [
-            b for b in books if b["genre"] == book_clue
+        # MBTI에 해당하는 장르를 우선 추천
+        result = [
+            book for book in books
+            if book["genre"] == target
+            or book["mood"] == target
         ]
-
-        if len(matched_books) < 2:
-            matched_books = books
-
-    elif clue == "감동":
-        matched_books = [
-            b for b in books
-            if b["mood"] == "따뜻한"
-        ]
-
-    elif clue == "판타지":
-        matched_books = [
-            b for b in books
-            if b["genre"] == "판타지"
-        ]
-
-    elif clue in ["추리", "성장", "자기계발", "과학"]:
-        matched_books = [
-            b for b in books
-            if b["genre"] == clue
-        ]
-
-    elif clue == "생각할 거리":
-        matched_books = [
-            b for b in books
-            if b["mood"] == clue
-        ]
-
-    elif clue == "힐링":
-        matched_books = [
-            b for b in books
-            if b["mood"] == "따뜻한"
-        ]
-
-    elif clue == "유쾌함":
-        matched_books = [
-            b for b in books
-            if b["mood"] == "유쾌한"
-        ]
-
-    elif clue == "모험":
-        matched_books = [
-            b for b in books
-            if b["genre"] == "판타지"
-        ]
-
-    elif clue == "액션":
-        matched_books = [
-            b for b in books
-            if b["genre"] == "추리"
-        ]
-
-    elif clue == "코미디":
-        matched_books = [
-            b for b in books
-            if b["mood"] == "유쾌한"
-        ]
-
-    elif clue == "애니메이션":
-        matched_books = [
-            b for b in books
-            if b["genre"] == "판타지"
-        ]
-
-    elif clue == "SF":
-        matched_books = [
-            b for b in books
-            if b["genre"] == "과학"
-        ]
-
     else:
-        matched_books = books
+        result = [
+            book for book in books
+            if book["genre"] == clue
+            or book["mood"] == clue
+        ]
 
-    # 선택한 단서에 맞는 영화 필터링
-    movie_genres = [
-        "애니메이션", "SF", "액션", "코미디"
-    ]
+    # 조건에 맞는 작품이 부족하면 전체 목록에서 보충
+    if len(result) < 2:
+        result = result + [
+            book for book in books
+            if book not in result
+        ]
 
-    movie_moods = [
-        "감동", "모험", "유쾌함", "힐링", "생각할 거리"
-    ]
+    return random.sample(result, 2)
 
+
+def recommend_movies(mbti, clue):
     if clue == "MBTI 맞춤 추천":
-        if selected_mbti in ["ISTP", "ENTP"]:
-            matched_movies = [
-                m for m in movies
-                if m["genre"] in ["SF", "액션"]
+        target = mbti_data[mbti][1]
+
+        if target in ["과학"]:
+            result = [
+                movie for movie in movies
+                if movie["genre"] == "SF"
             ]
-        elif selected_mbti in ["ESFP", "ESTP"]:
-            matched_movies = [
-                m for m in movies
-                if m["mood"] in ["유쾌함", "모험"]
+        elif target in ["추리", "도전"]:
+            result = [
+                movie for movie in movies
+                if movie["mood"] == "모험"
+            ]
+        elif target == "코미디":
+            result = [
+                movie for movie in movies
+                if movie["genre"] == "코미디"
+                or movie["mood"] == "유쾌함"
+            ]
+        elif target == "판타지":
+            result = [
+                movie for movie in movies
+                if movie["mood"] == "모험"
+                or movie["genre"] == "애니메이션"
             ]
         else:
-            matched_movies = [
-                m for m in movies
-                if m["mood"] in ["감동", "생각할 거리"]
+            result = [
+                movie for movie in movies
+                if movie["mood"] == "감동"
+                or movie["mood"] == "생각할 거리"
             ]
 
-    elif clue in movie_genres:
-        matched_movies = [
-            m for m in movies
-            if m["genre"] == clue
-        ]
-
-    elif clue in movie_moods:
-        matched_movies = [
-            m for m in movies
-            if m["mood"] == clue
-        ]
-
-    elif clue == "판타지":
-        matched_movies = [
-            m for m in movies
-            if m["genre"] in ["애니메이션", "SF"]
-        ]
-
-    elif clue == "추리":
-        matched_movies = [
-            m for m in movies
-            if m["genre"] in ["SF", "액션"]
-        ]
-
-    elif clue == "성장":
-        matched_movies = [
-            m for m in movies
-            if m["mood"] in ["감동", "모험"]
-        ]
-
-    elif clue == "자기계발":
-        matched_movies = [
-            m for m in movies
-            if m["mood"] in ["감동", "생각할 거리"]
-        ]
-
-    elif clue == "과학":
-        matched_movies = [
-            m for m in movies
-            if m["genre"] == "SF"
-        ]
-
     else:
-        matched_movies = movies
+        # 장르 단서
+        genre_matches = [
+            movie for movie in movies
+            if movie["genre"] == clue
+        ]
 
-    # 결과가 적을 때 전체 목록에서 보충
-    random.seed(selected_mbti + clue)
+        # 분위기 단서
+        mood_matches = [
+            movie for movie in movies
+            if movie["mood"] == clue
+        ]
 
-    if len(matched_books) < 2:
-        matched_books = books.copy()
+        result = genre_matches + mood_matches
 
-    if len(matched_movies) < 2:
-        matched_movies = movies.copy()
+    # 영화가 2개 미만이면 전체 영화에서 보충
+    if len(result) < 2:
+        result = result + [
+            movie for movie in movies
+            if movie not in result
+        ]
 
-    recommended_books = random.sample(
-        matched_books, 2
+    # 2010년 이후 개봉한 영화만 추천
+    result = [
+        movie for movie in result
+        if movie["year"] > 2010
+    ]
+
+    return random.sample(result, 2)
+
+
+# -------------------------------
+# 8. 추천 결과 표시
+# -------------------------------
+
+if st.button("🎁 책과 영화 추천받기", use_container_width=True):
+
+    recommended_books = recommend_books(
+        selected_mbti,
+        selected_clue
     )
 
-    recommended_movies = random.sample(
-        matched_movies, 2
+    recommended_movies = recommend_movies(
+        selected_mbti,
+        selected_clue
     )
 
     st.divider()
-    st.header("📚 너를 위한 책 추천!")
 
-    for i, book in enumerate(recommended_books, 1):
-        st.subheader(f"📖 책 {i}: {book['title']}")
-        st.write(f"✍️ 작가: {book['author']}")
-        st.write(f"🏷️ 장르: {book['genre']}")
-        st.write(f"💬 추천 이유: {book['desc']}")
+    st.header("📚 너를 위한 책 2권")
+
+    for number, book in enumerate(recommended_books, start=1):
+        with st.container(border=True):
+            st.subheader(f"📖 {number}. {book['title']}")
+            st.write(f"✍️ 작가: {book['author']}")
+            st.write(f"🏷️ 장르: {book['genre']}")
+            st.write(f"💬 추천 이유: {book['desc']}")
 
     st.divider()
-    st.header("🎬 너를 위한 영화 추천!")
 
-    for i, movie in enumerate(recommended_movies, 1):
-        st.subheader(
-            f"🍿 영화 {i}: {movie['title']}"
-        )
-        st.write(f"📅 개봉 연도: {movie['year']}년")
-        st.write(f"🏷️ 장르: {movie['genre']}")
-        st.write(f"💬 추천 이유: {movie['desc']}")
+    st.header("🎬 너를 위한 영화 2개")
 
-    st.success(
-        "🎉 추천 완료! 마음에 드는 작품을 골라서 즐겨 봐!"
-    )
+    for number, movie in enumerate(recommended_movies, start=1):
+        with st.container(border=True):
+            st.subheader(f"🍿 {number}. {movie['title']}")
+            st.write(f"📅 개봉 연도: {movie['year']}년")
+            st.write(f"🏷️ 장르: {movie['genre']}")
+            st.write(f"💬 추천 이유: {movie['desc']}")
+
+    st.success("🎉 추천 완료! 마음에 드는 작품을 즐겨 봐!")
 
     st.caption(
-        "※ MBTI는 재미를 위한 참고 자료야. "
-        "실제 취향과 추천 결과는 다를 수 있어!"
+        "※ MBTI에 따른 추천은 재미를 위한 참고 자료야. "
+        "실제 취향과 다를 수 있어!"
     )
+
+# -------------------------------
+# 9. 하단 안내
+# -------------------------------
+
+st.divider()
+st.caption("📚 책 2권 + 🎬 영화 2개를 추천하는 MBTI 맞춤 서비스")
+st.caption("영화는 2010년 이후 개봉작으로 구성했어.")
+```
