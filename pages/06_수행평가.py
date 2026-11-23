@@ -1,645 +1,393 @@
 
 import streamlit as st
-import sqlite3
-import csv
-import io
-import os
-import uuid
-from collections import Counter
+import pandas as pd
 
-# =========================================
+# =====================================
 # 1. 페이지 설정
-# =========================================
+# =====================================
 
 st.set_page_config(
-    page_title="학생 디저트 선호도 분석",
+    page_title="디저트 외식시장 조사",
     page_icon="🍰",
     layout="wide"
 )
 
-st.title("🍰 학생 디저트 선호도 분석")
+# =====================================
+# 2. 프로그램 제목
+# =====================================
+
+st.title("🍰 국내외 디저트 외식시장 조사")
 st.write(
-    "보성군 차 음식 및 디저트 공공데이터를 활용하여 "
-    "학생들의 디저트 선호도를 조사합니다."
+    "디저트 시장의 규모, 소비자 선호도 및 "
+    "시장 트렌드를 분석하는 대시보드입니다."
+)
+
+st.warning(
+    "※ 본 프로그램의 통계 수치는 "
+    "시연을 위해 임의로 구성한 가상 데이터입니다. "
+    "실제 시장조사 결과가 아닙니다."
 )
 
 st.divider()
 
-# =========================================
-# 2. 데이터베이스 생성
-# =========================================
-
-DB_NAME = "dessert_survey.db"
-
-def connect_db():
-    return sqlite3.connect(DB_NAME)
-
-def create_table():
-    conn = connect_db()
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS votes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            voter_id TEXT UNIQUE,
-            dessert TEXT NOT NULL,
-            rating INTEGER NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-create_table()
-
-# =========================================
-# 3. 공공데이터 CSV 불러오기
-# =========================================
-
-st.header("📂 1. 공공데이터 불러오기")
-
-st.write(
-    "공공데이터포털에서 다운로드한 "
-    "보성군 차 음식 및 디저트 CSV 파일을 사용합니다."
-)
-
-st.markdown(
-    "[공공데이터 원본 다운로드 페이지](https://www.data.go.kr/data/15111850/fileData.do)"
-)
-
-uploaded_file = st.file_uploader(
-    "다운로드한 CSV 파일을 업로드하세요.",
-    type=["csv"]
-)
-
-def read_csv_file(file_content):
-
-    # UTF-8 또는 한글 CSV 인코딩 처리
-    try:
-        content = file_content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        content = file_content.decode("cp949")
-
-    reader = csv.DictReader(io.StringIO(content))
-
-    rows = []
-
-    for row in reader:
-        # 컬럼명 앞뒤 공백 제거
-        cleaned = {
-            str(key).strip(): (
-                value.strip() if value else ""
-            )
-            for key, value in row.items()
-            if key is not None
-        }
-
-        rows.append(cleaned)
-
-    return rows
-
-
-dataset = []
-
-if uploaded_file is not None:
-
-    try:
-        dataset = read_csv_file(uploaded_file.getvalue())
-
-        st.success("공공데이터 CSV를 불러왔습니다!")
-
-    except Exception as e:
-
-        st.error("CSV 파일을 읽지 못했습니다.")
-        st.code(str(e))
-
-elif os.path.exists("desserts.csv"):
-
-    try:
-        with open("desserts.csv", "rb") as file:
-            dataset = read_csv_file(file.read())
-
-        st.success("프로젝트 폴더의 desserts.csv를 불러왔습니다!")
-
-    except Exception as e:
-
-        st.error("CSV 파일을 읽지 못했습니다.")
-        st.code(str(e))
-
-else:
-
-    st.warning(
-        "아직 CSV 파일이 없습니다. "
-        "공공데이터포털에서 파일을 다운로드한 뒤 업로드해주세요."
-    )
-
-# =========================================
-# 4. 실제 데이터 컬럼 확인
-# =========================================
-
-required_columns = [
-    "요리명",
-    "주재료",
-    "부재료",
-    "조리법",
-    "상세설명",
-    "데이터기준일자"
-]
-
-data_valid = False
-
-if dataset:
-
-    missing_columns = [
-        column
-        for column in required_columns
-        if column not in dataset[0]
-    ]
-
-    if missing_columns:
-
-        st.error(
-            "CSV 파일의 컬럼명이 공공데이터 원본과 다릅니다."
-        )
-
-        st.write("확인되지 않은 컬럼:", missing_columns)
-
-    else:
-
-        data_valid = True
-
-        st.subheader("공공데이터 미리보기")
-
-        st.dataframe(
-            dataset,
-            use_container_width=True,
-            hide_index=True
-        )
-
-        st.metric(
-            "불러온 데이터 개수",
-            str(len(dataset)) + "개"
-        )
-
-# =========================================
-# 5. 디저트 목록 자동 생성
-# =========================================
-
-dessert_data = {}
-
-if data_valid:
-
-    for row in dataset:
-
-        name = row["요리명"].strip()
-
-        if name:
-
-            dessert_data[name] = {
-                "주재료": row["주재료"],
-                "부재료": row["부재료"],
-                "조리법": row["조리법"],
-                "상세설명": row["상세설명"],
-                "데이터기준일자": row["데이터기준일자"]
-            }
-
-dessert_list = list(dessert_data.keys())
-
-st.divider()
-
-# =========================================
-# 6. 디저트 정보 확인
-# =========================================
-
-st.header("🍵 2. 공공데이터 디저트 정보")
-
-if data_valid and dessert_list:
-
-    selected_info = st.selectbox(
-        "자세히 알아볼 디저트를 선택하세요.",
-        dessert_list
-    )
-
-    info = dessert_data[selected_info]
-
-    st.subheader("🍰 " + selected_info)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.markdown("**주재료**")
-        st.write(info["주재료"] or "정보 없음")
-
-        st.markdown("**부재료**")
-        st.write(info["부재료"] or "정보 없음")
-
-    with col2:
-
-        st.markdown("**상세설명**")
-        st.write(info["상세설명"] or "정보 없음")
-
-        st.markdown("**데이터기준일자**")
-        st.write(info["데이터기준일자"] or "정보 없음")
-
-    with st.expander("조리법 확인하기"):
-
-        st.write(info["조리법"] or "조리법 정보 없음")
-
-else:
-
-    st.info("먼저 공공데이터 CSV 파일을 불러와주세요.")
-
-st.divider()
-
-# =========================================
-# 7. 익명 투표 준비
-# =========================================
-
-st.header("🗳️ 3. 학생 익명 선호도 투표")
-
-st.write(
-    "공공데이터에 등록된 디저트 중 "
-    "가장 선호하는 메뉴를 선택해주세요."
-)
-
-# 브라우저 세션별 익명 식별자
-if "voter_id" not in st.session_state:
-
-    st.session_state.voter_id = str(uuid.uuid4())
-
-
-def has_voted(voter_id):
-
-    conn = connect_db()
-
-    result = conn.execute(
-        """
-        SELECT id
-        FROM votes
-        WHERE voter_id = ?
-        """,
-        (voter_id,)
-    ).fetchone()
-
-    conn.close()
-
-    return result is not None
-
-
-# =========================================
-# 8. 투표 입력
-# =========================================
-
-if data_valid and dessert_list:
-
-    if has_voted(st.session_state.voter_id):
-
-        st.success("현재 브라우저 세션에서는 이미 투표했습니다.")
-
-    else:
-
-        with st.form("vote_form"):
-
-            vote_dessert = st.selectbox(
-                "가장 좋아하는 디저트는 무엇인가요?",
-                dessert_list
-            )
-
-            vote_rating = st.slider(
-                "선택한 디저트를 얼마나 좋아하나요?",
-                min_value=1,
-                max_value=5,
-                value=5
-            )
-
-            vote_submit = st.form_submit_button(
-                "익명 투표 제출하기",
-                use_container_width=True
-            )
-
-            if vote_submit:
-
-                conn = connect_db()
-
-                try:
-
-                    conn.execute(
-                        """
-                        INSERT INTO votes
-                        (voter_id, dessert, rating)
-                        VALUES (?, ?, ?)
-                        """,
-                        (
-                            st.session_state.voter_id,
-                            vote_dessert,
-                            vote_rating
-                        )
-                    )
-
-                    conn.commit()
-
-                    st.success("투표가 저장되었습니다!")
-
-                    st.rerun()
-
-                except sqlite3.IntegrityError:
-
-                    st.warning("이미 투표한 세션입니다.")
-
-                finally:
-
-                    conn.close()
-
-else:
-
-    st.info(
-        "공공데이터 CSV를 불러오면 "
-        "학생 투표 기능이 활성화됩니다."
-    )
-
-st.divider()
-
-# =========================================
-# 9. 투표 결과 불러오기
-# =========================================
-
-def get_votes():
-
-    conn = connect_db()
-
-    rows = conn.execute(
-        """
-        SELECT dessert, rating
-        FROM votes
-        """
-    ).fetchall()
-
-    conn.close()
-
-    return rows
-
-
-votes = get_votes()
-
-total_votes = len(votes)
-
-vote_counts = Counter(
-    dessert for dessert, rating in votes
-)
-
-# =========================================
-# 10. 전체 투표 현황
-# =========================================
-
-st.header("📊 4. 전체 투표 현황")
-
-col1, col2, col3 = st.columns(3)
+# =====================================
+# 3. 가상 시장조사 데이터
+# =====================================
+
+# 연도별 시장 규모
+market_data = pd.DataFrame({
+    "연도": [2021, 2022, 2023, 2024, 2025],
+    "시장 규모": [1.8, 2.0, 2.2, 2.5, 2.8]
+})
+
+# 디저트 종류별 선호도
+preference_data = pd.DataFrame({
+    "디저트": [
+        "케이크",
+        "아이스크림",
+        "베이커리",
+        "마카롱",
+        "와플",
+        "기타"
+    ],
+    "선호도": [32, 25, 20, 13, 6, 4]
+})
+
+# 소비자의 구매 이유
+reason_data = pd.DataFrame({
+    "구매 이유": [
+        "맛",
+        "가격",
+        "디자인",
+        "브랜드",
+        "접근성"
+    ],
+    "비율": [40, 22, 18, 12, 8]
+})
+
+# 디저트 구매 장소
+place_data = pd.DataFrame({
+    "구매 장소": [
+        "개인 카페",
+        "프랜차이즈 카페",
+        "베이커리 전문점",
+        "온라인",
+        "기타"
+    ],
+    "비율": [30, 28, 22, 15, 5]
+})
+
+# 디저트 시장 트렌드
+trend_data = pd.DataFrame({
+    "트렌드": [
+        "저당 디저트",
+        "비건 디저트",
+        "프리미엄 디저트",
+        "캐릭터 디저트",
+        "전통 디저트"
+    ],
+    "관심도": [85, 65, 90, 75, 70]
+})
+
+# 국내외 시장 비교
+global_data = pd.DataFrame({
+    "국가": [
+        "한국",
+        "미국",
+        "일본",
+        "중국",
+        "프랑스"
+    ],
+    "시장 관심도": [85, 90, 82, 88, 86]
+})
+
+# =====================================
+# 4. 핵심 시장 지표
+# =====================================
+
+st.header("📊 1. 시장 핵심 지표")
+
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric(
-    "총 투표 수",
-    str(total_votes) + "명"
+    "2025년 가상 시장 규모",
+    "2.8조 원",
+    "+12.0%"
 )
 
 col2.metric(
-    "조사 디저트 수",
-    str(len(dessert_list)) + "종"
+    "가상 연평균 성장률",
+    "7.2%",
+    "+0.8%p"
 )
-
-if vote_counts:
-
-    popular_dessert = vote_counts.most_common(1)[0][0]
-
-else:
-
-    popular_dessert = "아직 없음"
 
 col3.metric(
-    "현재 인기 디저트",
-    popular_dessert
+    "인기 디저트",
+    "케이크",
+    "선호도 32%"
+)
+
+col4.metric(
+    "최고 관심 트렌드",
+    "프리미엄",
+    "관심도 90점"
 )
 
 st.divider()
 
-# =========================================
-# 11. 디저트별 득표수 그래프
-# =========================================
+# =====================================
+# 5. 연도별 시장 규모 분석
+# =====================================
 
-st.header("🏆 5. 디저트별 선호도 순위")
+st.header("📈 2. 연도별 디저트 시장 규모")
 
-if total_votes > 0:
+st.write(
+    "2021년부터 2025년까지의 "
+    "가상 시장 규모 변화입니다."
+)
 
-    dessert_counts = {
-        name: vote_counts.get(name, 0)
-        for name in dessert_list
-    }
+st.line_chart(
+    market_data.set_index("연도")
+)
 
-    sorted_counts = dict(
-        sorted(
-            dessert_counts.items(),
-            key=lambda item: item[1],
-            reverse=True
-        )
-    )
+st.caption("단위: 조 원")
 
-    st.subheader("디저트별 투표 수")
-
-    st.bar_chart(sorted_counts)
-
-    st.caption(
-        "막대가 길수록 해당 디저트를 선택한 학생이 많습니다."
-    )
-
-    st.subheader("디저트별 선호 비율")
-
-    percentages = {
-        name: round(count / total_votes * 100, 1)
-        for name, count in sorted_counts.items()
-    }
-
-    st.bar_chart(percentages)
-
-    st.caption(
-        "각 디저트의 득표수를 전체 투표 수로 나눈 비율입니다."
-    )
-
-else:
-
-    st.info(
-        "아직 투표 결과가 없습니다. "
-        "학생들이 투표하면 그래프가 자동으로 생성됩니다."
-    )
+# =====================================
+# 6. 디저트 종류별 선호도
+# =====================================
 
 st.divider()
 
-# =========================================
-# 12. 평균 선호도 그래프
-# =========================================
+st.header("🍰 3. 디저트 종류별 소비자 선호도")
 
-st.header("⭐ 6. 디저트별 평균 선호도")
+col1, col2 = st.columns(2)
 
-if total_votes > 0:
+with col1:
 
-    rating_data = {}
+    st.subheader("디저트 선호도 그래프")
 
-    for dessert, rating in votes:
-
-        if dessert not in rating_data:
-
-            rating_data[dessert] = []
-
-        rating_data[dessert].append(rating)
-
-    average_ratings = {}
-
-    for dessert, ratings in rating_data.items():
-
-        average_ratings[dessert] = round(
-            sum(ratings) / len(ratings),
-            2
-        )
-
-    sorted_ratings = dict(
-        sorted(
-            average_ratings.items(),
-            key=lambda item: item[1],
-            reverse=True
-        )
+    st.bar_chart(
+        preference_data.set_index("디저트")
     )
 
-    st.bar_chart(sorted_ratings)
+with col2:
 
-    best_dessert = max(
-        average_ratings,
-        key=average_ratings.get
-    )
-
-    st.success(
-        "평균 선호도 1위: " + best_dessert
-    )
-
-else:
-
-    st.info("아직 평균 선호도를 계산할 수 없습니다.")
-
-st.divider()
-
-# =========================================
-# 13. 상세 조사 결과
-# =========================================
-
-st.header("📋 7. 조사 결과 상세표")
-
-if total_votes > 0:
-
-    result_rows = []
-
-    for dessert in dessert_list:
-
-        count = vote_counts.get(dessert, 0)
-
-        ratings = rating_data.get(dessert, [])
-
-        average = (
-            round(sum(ratings) / len(ratings), 2)
-            if ratings else 0
-        )
-
-        percentage = round(
-            count / total_votes * 100,
-            1
-        )
-
-        result_rows.append({
-            "디저트": dessert,
-            "투표 수": count,
-            "선호 비율(%)": percentage,
-            "평균 선호도": average
-        })
-
-    result_rows.sort(
-        key=lambda row: row["투표 수"],
-        reverse=True
-    )
+    st.subheader("디저트 선호도 상세표")
 
     st.dataframe(
-        result_rows,
+        preference_data,
         use_container_width=True,
         hide_index=True
     )
 
-else:
-
-    st.info("투표가 모이면 상세 결과가 나타납니다.")
-
-st.divider()
-
-# =========================================
-# 14. CSV 다운로드
-# =========================================
-
-st.header("💾 8. 조사 결과 다운로드")
-
-if total_votes > 0:
-
-    output = io.StringIO()
-
-    writer = csv.DictWriter(
-        output,
-        fieldnames=[
-            "디저트",
-            "투표 수",
-            "선호 비율(%)",
-            "평균 선호도"
-        ]
-    )
-
-    writer.writeheader()
-    writer.writerows(result_rows)
-
-    st.download_button(
-        label="📥 전체 조사 결과 다운로드",
-        data=output.getvalue().encode("utf-8-sig"),
-        file_name="학생_디저트_선호도_결과.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-else:
-
-    st.info("아직 다운로드할 조사 결과가 없습니다.")
+# =====================================
+# 7. 소비자 구매 이유
+# =====================================
 
 st.divider()
 
-# =========================================
-# 15. 데이터 출처
-# =========================================
+st.header("🛍️ 4. 소비자의 디저트 구매 이유")
 
-st.header("📚 데이터 출처 및 분석 방법")
+st.write(
+    "소비자가 디저트를 구매하는 이유를 "
+    "가상 비율로 비교합니다."
+)
+
+st.bar_chart(
+    reason_data.set_index("구매 이유")
+)
+
+st.caption("단위: 가상 응답 비율 (%)")
+
+# =====================================
+# 8. 디저트 구매 장소
+# =====================================
+
+st.divider()
+
+st.header("🏪 5. 디저트 구매 장소")
+
+st.write(
+    "소비자들이 디저트를 주로 구매하는 "
+    "장소를 비교합니다."
+)
+
+st.bar_chart(
+    place_data.set_index("구매 장소")
+)
+
+st.caption("단위: 가상 응답 비율 (%)")
+
+# =====================================
+# 9. 국내외 시장 비교
+# =====================================
+
+st.divider()
+
+st.header("🌍 6. 국내외 디저트 시장 비교")
+
+st.write(
+    "국가별 디저트 시장 관심도를 "
+    "가상 점수로 비교합니다."
+)
+
+st.bar_chart(
+    global_data.set_index("국가")
+)
+
+st.caption("단위: 가상 관심도 점수 (100점 만점)")
+
+# =====================================
+# 10. 디저트 시장 트렌드
+# =====================================
+
+st.divider()
+
+st.header("🔥 7. 디저트 시장 트렌드")
+
+st.write(
+    "최근 주목받는 디저트 유형에 대한 "
+    "가상 소비자 관심도입니다."
+)
+
+st.bar_chart(
+    trend_data.set_index("트렌드")
+)
+
+st.caption("단위: 가상 관심도 점수 (100점 만점)")
+
+# =====================================
+# 11. 시장 분석 결과
+# =====================================
+
+st.divider()
+
+st.header("🔎 8. 시장 분석 및 결과")
+
+st.subheader("① 디저트 시장 규모")
+
+st.write(
+    "가상 데이터에서는 디저트 외식시장 규모가 "
+    "2021년 1.8조 원에서 2025년 2.8조 원으로 "
+    "증가하는 것으로 나타납니다."
+)
+
+st.subheader("② 소비자 선호도")
+
+st.write(
+    "케이크가 32%로 가장 높은 선호도를 보이고, "
+    "아이스크림과 베이커리가 그 뒤를 잇는 것으로 "
+    "가정하였습니다."
+)
+
+st.subheader("③ 소비자 구매 이유")
+
+st.write(
+    "맛이 40%로 가장 높은 구매 이유이며, "
+    "가격과 디자인이 뒤를 잇는 것으로 "
+    "가정하였습니다."
+)
+
+st.subheader("④ 구매 장소")
+
+st.write(
+    "개인 카페와 프랜차이즈 카페가 "
+    "주요 디저트 구매 장소인 것으로 "
+    "가정하였습니다."
+)
+
+st.subheader("⑤ 시장 트렌드")
+
+st.write(
+    "프리미엄 디저트, 저당 디저트, "
+    "캐릭터 디저트 등이 주목받는 것으로 "
+    "가정하였습니다."
+)
+
+# =====================================
+# 12. 시장 발전 방향
+# =====================================
+
+st.divider()
+
+st.header("💡 9. 디저트 시장 발전 방향")
+
+st.markdown("""
+1. **건강 중심 제품 개발**
+   - 저당 및 비건 디저트 확대
+   - 건강을 고려한 재료 활용
+
+2. **프리미엄 제품 확대**
+   - 고급 재료를 활용한 디저트 개발
+   - 차별화된 맛과 디자인 제공
+
+3. **SNS 마케팅 강화**
+   - 사진을 찍고 공유하고 싶은 제품 개발
+   - 캐릭터 및 독특한 디자인 활용
+
+4. **판매 방식 다양화**
+   - 온라인 주문 및 배달 서비스 확대
+   - 다양한 판매 채널 확보
+
+5. **소비자 취향 반영**
+   - 연령대별 선호도 분석
+   - 새로운 디저트 메뉴 개발
+""")
+
+# =====================================
+# 13. 조사 데이터 다운로드
+# =====================================
+
+st.divider()
+
+st.header("💾 10. 조사 데이터 다운로드")
+
+st.subheader("디저트 선호도 데이터")
+
+csv_data = preference_data.to_csv(
+    index=False,
+    encoding="utf-8-sig"
+)
+
+st.download_button(
+    label="📥 디저트 선호도 CSV 다운로드",
+    data=csv_data,
+    file_name="디저트_선호도_가상데이터.csv",
+    mime="text/csv"
+)
+
+st.subheader("연도별 시장 규모 데이터")
+
+market_csv = market_data.to_csv(
+    index=False,
+    encoding="utf-8-sig"
+)
+
+st.download_button(
+    label="📥 시장 규모 CSV 다운로드",
+    data=market_csv,
+    file_name="디저트_시장규모_가상데이터.csv",
+    mime="text/csv"
+)
+
+# =====================================
+# 14. 참고 자료
+# =====================================
+
+st.divider()
+
+st.header("📚 참고 자료 및 출처")
 
 st.markdown(
-    """
-    **데이터 출처:** 전남광주통합특별시 보성군
-
-    **데이터명:** 차 음식 및 디저트 정보
-
-    **활용 항목:**
-    - 요리명
-    - 주재료
-    - 부재료
-    - 조리법
-    - 상세설명
-    - 데이터기준일자
-
-    **분석 방법:**
-    - 실제 학생 익명 투표 수집
-    - 디저트별 득표수 계산
-    - 전체 투표 대비 선호 비율 계산
-    - 평균 선호도 계산
-    """
+    "[공공데이터포털 - 국내외 디저트 외식시장조사]"
+    "(https://www.data.go.kr/data/15030129/fileData.do)"
 )
 
 st.caption(
-    "※ 이 결과는 실제 투표된 응답만을 분석합니다. "
-    "투표하지 않은 학생의 의견은 포함되지 않습니다."
+    "공공데이터포털 자료는 참고 자료로 제시했으며, "
+    "이 프로그램의 그래프와 수치는 가상 데이터입니다."
 )
 
+st.success(
+    "디저트 외식시장 분석 대시보드 실행 완료!"
+)
