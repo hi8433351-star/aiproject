@@ -1,343 +1,488 @@
 
 import streamlit as st
+import sqlite3
 import csv
 import io
+import os
+import uuid
+from collections import Counter
 
-# =====================================
+# ==========================================
 # 1. 페이지 설정
-# =====================================
+# ==========================================
 
 st.set_page_config(
-    page_title="학생별 디저트 선호도 분석",
+    page_title="학생 디저트 선호도 조사",
     page_icon="🍰",
     layout="wide"
 )
 
-# =====================================
-# 2. 프로그램 제목
-# =====================================
-
-st.title("🍰 학생별 디저트 선호도 분석")
-st.write("공공데이터를 활용한 학생별 디저트 선호도 조사")
+st.title("🍰 학생 디저트 선호도 조사")
+st.write(
+    "학생들이 직접 익명으로 투표하면 "
+    "결과를 자동으로 수집하고 그래프로 분석합니다."
+)
 
 st.divider()
 
-# =====================================
-# 3. 공공데이터 CSV 업로드
-# =====================================
+# ==========================================
+# 2. 데이터베이스 설정
+# ==========================================
 
-st.header("📁 1. 디저트 데이터 불러오기")
+DB_NAME = "dessert_survey.db"
 
-uploaded_file = st.file_uploader(
-    "공공데이터 CSV 파일을 업로드하세요.",
-    type=["csv"]
-)
+def connect_db():
+    return sqlite3.connect(DB_NAME)
 
-# 기본 디저트 목록
-dessert_list = [
-    "녹차 케이크",
-    "그린티 스무디",
-    "홍차 에이드",
-    "녹차 쿠키",
-    "녹차 라떼"
-]
+def create_table():
+    conn = connect_db()
 
-if uploaded_file is not None:
-    try:
-        raw_data = uploaded_file.getvalue()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            voter_id TEXT UNIQUE,
+            dessert TEXT NOT NULL,
+            rating INTEGER NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+create_table()
+
+# ==========================================
+# 3. 디저트 목록 불러오기
+# ==========================================
+
+def load_desserts():
+
+    desserts = []
+
+    # 프로젝트 폴더에 CSV가 있으면 자동으로 읽기
+    if os.path.exists("desserts.csv"):
 
         try:
-            content = raw_data.decode("utf-8-sig")
+            with open(
+                "desserts.csv",
+                "r",
+                encoding="utf-8-sig",
+                newline=""
+            ) as file:
+
+                reader = csv.DictReader(file)
+
+                for row in reader:
+                    name = row.get("요리명", "").strip()
+
+                    if name:
+                        desserts.append(name)
+
         except UnicodeDecodeError:
-            content = raw_data.decode("cp949")
+            with open(
+                "desserts.csv",
+                "r",
+                encoding="cp949",
+                newline=""
+            ) as file:
 
-        reader = csv.DictReader(io.StringIO(content))
-        csv_data = list(reader)
+                reader = csv.DictReader(file)
 
-        # CSV에서 요리명 가져오기
-        if csv_data and "요리명" in csv_data[0]:
-            dessert_list = list(dict.fromkeys(
-                row["요리명"].strip()
-                for row in csv_data
-                if row.get("요리명", "").strip()
-            ))
+                for row in reader:
+                    name = row.get("요리명", "").strip()
 
-            st.success("공공데이터를 성공적으로 불러왔습니다.")
-            st.dataframe(csv_data, use_container_width=True)
+                    if name:
+                        desserts.append(name)
 
-        else:
-            st.warning(
-                "CSV 파일에 '요리명' 항목이 없습니다. "
-                "기본 디저트 목록을 사용합니다."
-            )
+        except Exception:
+            desserts = []
 
-    except Exception as e:
-        st.error("CSV 파일을 읽는 중 오류가 발생했습니다.")
-        st.write(str(e))
+    # CSV가 없으면 기본 목록 사용
+    if not desserts:
+        desserts = [
+            "고구마녹차케이크",
+            "그린티 스무디",
+            "홍차 에이드",
+            "녹차 쿠키",
+            "녹차 라떼"
+        ]
 
-else:
-    st.info("CSV를 업로드하지 않으면 기본 디저트 목록을 사용합니다.")
+    return sorted(set(desserts))
 
-st.divider()
 
-# =====================================
-# 4. 학생별 선호도 입력
-# =====================================
+dessert_list = load_desserts()
 
-st.header("📝 2. 학생별 디저트 선호도 조사")
+# ==========================================
+# 4. 학생별 익명 투표
+# ==========================================
 
-# 세션 상태 저장
-if "preferences" not in st.session_state:
-    st.session_state.preferences = []
+st.header("🗳️ 1. 디저트 선호도 투표")
 
-student = st.text_input(
-    "학생 이름",
-    placeholder="예: 학생1"
+st.info(
+    "가장 좋아하는 디저트 하나를 선택하고 "
+    "선호도 점수를 남겨주세요. 투표는 익명으로 저장됩니다."
 )
 
-dessert = st.selectbox(
-    "좋아하는 디저트를 선택하세요.",
-    dessert_list
-)
+# 브라우저 세션별 투표 식별자
+if "voter_id" not in st.session_state:
+    st.session_state.voter_id = str(uuid.uuid4())
 
-rating = st.slider(
-    "디저트 선호도 점수",
-    min_value=1,
-    max_value=5,
-    value=3,
-    help="1점은 낮은 선호도, 5점은 높은 선호도입니다."
-)
+# 이미 투표했는지 확인
+def has_voted(voter_id):
 
-if st.button("선호도 저장하기", use_container_width=True):
+    conn = connect_db()
 
-    if student.strip() == "":
-        st.warning("학생 이름을 입력해주세요.")
+    result = conn.execute(
+        "SELECT id FROM votes WHERE voter_id = ?",
+        (voter_id,)
+    ).fetchone()
 
-    else:
-        st.session_state.preferences.append({
-            "학생": student.strip(),
-            "디저트": dessert,
-            "선호도": rating
-        })
+    conn.close()
 
-        st.success("학생 선호도가 저장되었습니다!")
+    return result is not None
 
-st.divider()
 
-# =====================================
-# 5. 입력 데이터 확인
-# =====================================
+already_voted = has_voted(st.session_state.voter_id)
 
-st.header("📋 3. 학생별 조사 결과")
+if already_voted:
 
-data = st.session_state.preferences
+    st.success("이미 투표가 완료되었습니다!")
 
-if data:
-
-    st.dataframe(
-        data,
-        use_container_width=True
+    st.write(
+        "현재 브라우저 세션에서는 중복 투표할 수 없습니다."
     )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric(
-            "참여 학생 수",
-            len(set(row["학생"] for row in data))
-        )
-
-    with col2:
-        st.metric(
-            "총 응답 수",
-            len(data)
-        )
-
-    if st.button("전체 조사 결과 초기화"):
-        st.session_state.preferences = []
-        st.rerun()
-
 else:
-    st.info("아직 입력된 조사 결과가 없습니다.")
+
+    with st.form("dessert_vote_form"):
+
+        selected_dessert = st.selectbox(
+            "가장 좋아하는 디저트는 무엇인가요?",
+            dessert_list
+        )
+
+        selected_rating = st.slider(
+            "이 디저트를 얼마나 좋아하나요?",
+            min_value=1,
+            max_value=5,
+            value=5
+        )
+
+        submitted = st.form_submit_button(
+            "익명 투표하기",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            conn = connect_db()
+
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO votes
+                    (voter_id, dessert, rating)
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        st.session_state.voter_id,
+                        selected_dessert,
+                        selected_rating
+                    )
+                )
+
+                conn.commit()
+
+                st.success("투표가 정상적으로 저장되었습니다!")
+
+                st.rerun()
+
+            except sqlite3.IntegrityError:
+                st.warning("이미 투표한 세션입니다.")
+
+            finally:
+                conn.close()
 
 st.divider()
 
-# =====================================
-# 6. 학생별 선호도 그래프
-# =====================================
+# ==========================================
+# 5. 투표 결과 불러오기
+# ==========================================
 
-st.header("📊 4. 학생별 디저트 선호도 그래프")
+def get_votes():
 
-if data:
+    conn = connect_db()
 
-    students = list(dict.fromkeys(
-        row["학생"] for row in data
-    ))
+    rows = conn.execute(
+        """
+        SELECT dessert, rating
+        FROM votes
+        """
+    ).fetchall()
 
-    selected_student = st.selectbox(
-        "그래프를 확인할 학생을 선택하세요.",
-        students
+    conn.close()
+
+    return rows
+
+
+votes = get_votes()
+
+# ==========================================
+# 6. 전체 투표 현황
+# ==========================================
+
+st.header("📊 2. 전체 투표 현황")
+
+total_votes = len(votes)
+
+vote_counts = Counter(
+    dessert for dessert, rating in votes
+)
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "총 투표 수",
+    f"{total_votes}명"
+)
+
+col2.metric(
+    "조사 대상 디저트",
+    f"{len(dessert_list)}종"
+)
+
+if vote_counts:
+
+    popular_dessert = vote_counts.most_common(1)[0][0]
+
+else:
+
+    popular_dessert = "아직 없음"
+
+col3.metric(
+    "현재 인기 1위",
+    popular_dessert
+)
+
+st.divider()
+
+# ==========================================
+# 7. 디저트별 선호도 그래프
+# ==========================================
+
+st.header("🏆 3. 디저트별 선호도 순위")
+
+if total_votes > 0:
+
+    dessert_counts = {}
+
+    for dessert in dessert_list:
+        dessert_counts[dessert] = vote_counts.get(
+            dessert, 0
+        )
+
+    # 득표수가 많은 순서로 정렬
+    sorted_counts = dict(
+        sorted(
+            dessert_counts.items(),
+            key=lambda item: item[1],
+            reverse=True
+        )
     )
 
-    student_scores = {}
+    st.subheader("디저트별 투표 수")
 
-    for row in data:
+    st.bar_chart(sorted_counts)
 
-        if row["학생"] == selected_student:
+    st.subheader("디저트별 선호 비율")
 
-            name = row["디저트"]
-            score = row["선호도"]
+    percentages = {}
 
-            if name not in student_scores:
-                student_scores[name] = []
+    for dessert, count in sorted_counts.items():
 
-            student_scores[name].append(score)
+        percentages[dessert] = round(
+            count / total_votes * 100,
+            1
+        )
 
-    # 같은 학생이 같은 디저트에 여러 번 응답한 경우 평균
-    chart_data = {}
+    st.bar_chart(percentages)
 
-    for name, scores in student_scores.items():
-        chart_data[name] = sum(scores) / len(scores)
-
-    st.subheader(selected_student + "의 디저트 선호도")
-
-    st.bar_chart(chart_data)
-
-    st.caption("선호도 점수는 1점부터 5점까지입니다.")
+    st.caption(
+        "선호 비율은 전체 투표 수에서 "
+        "각 디저트가 차지하는 비율입니다."
+    )
 
 else:
-    st.info("학생 데이터를 입력하면 그래프가 표시됩니다.")
+
+    st.info(
+        "아직 투표 결과가 없습니다. "
+        "학생들이 투표하면 그래프가 자동으로 나타납니다."
+    )
 
 st.divider()
 
-# =====================================
-# 7. 전체 학생 평균 비교
-# =====================================
+# ==========================================
+# 8. 디저트별 평균 선호도
+# ==========================================
 
-st.header("👥 5. 전체 학생 선호도 비교")
+st.header("⭐ 4. 디저트별 평균 선호도")
 
-if data:
+if total_votes > 0:
 
-    student_scores = {}
+    rating_data = {}
 
-    for row in data:
+    for dessert, rating in votes:
 
-        name = row["학생"]
+        if dessert not in rating_data:
+            rating_data[dessert] = []
 
-        if name not in student_scores:
-            student_scores[name] = []
+        rating_data[dessert].append(rating)
 
-        student_scores[name].append(row["선호도"])
+    average_ratings = {}
 
-    average_students = {}
+    for dessert, ratings in rating_data.items():
 
-    for name, scores in student_scores.items():
-        average_students[name] = round(
-            sum(scores) / len(scores), 2
+        average_ratings[dessert] = round(
+            sum(ratings) / len(ratings),
+            2
         )
 
-    st.bar_chart(average_students)
-
-    st.write("학생별 평균 선호도")
-
-    for name, score in average_students.items():
-        st.write(name + ":", score, "점")
-
-else:
-    st.info("학생 데이터를 입력해주세요.")
-
-st.divider()
-
-# =====================================
-# 8. 디저트 종류별 평균 선호도
-# =====================================
-
-st.header("🍮 6. 디저트 종류별 평균 선호도")
-
-if data:
-
-    dessert_scores = {}
-
-    for row in data:
-
-        name = row["디저트"]
-
-        if name not in dessert_scores:
-            dessert_scores[name] = []
-
-        dessert_scores[name].append(row["선호도"])
-
-    average_desserts = {}
-
-    for name, scores in dessert_scores.items():
-
-        average_desserts[name] = round(
-            sum(scores) / len(scores), 2
+    sorted_ratings = dict(
+        sorted(
+            average_ratings.items(),
+            key=lambda item: item[1],
+            reverse=True
         )
+    )
 
-    st.bar_chart(average_desserts)
+    st.bar_chart(sorted_ratings)
 
-    # 가장 인기 있는 디저트
-    best_dessert = max(
-        average_desserts,
-        key=average_desserts.get
+    best_rating_dessert = max(
+        average_ratings,
+        key=average_ratings.get
     )
 
     st.success(
-        "🏆 가장 선호도가 높은 디저트: "
-        + best_dessert
-    )
-
-    st.metric(
-        "평균 선호도",
-        str(average_desserts[best_dessert]) + "점"
+        "평균 선호도 1위: "
+        + best_rating_dessert
     )
 
 else:
-    st.info("학생 데이터를 입력해주세요.")
+
+    st.info("아직 분석할 선호도 자료가 없습니다.")
 
 st.divider()
 
-# =====================================
-# 9. 조사 결과 CSV 다운로드
-# =====================================
+# ==========================================
+# 9. 상세 조사 결과
+# ==========================================
 
-st.header("💾 7. 조사 결과 다운로드")
+st.header("📋 5. 조사 결과 상세 분석")
 
-if data:
+if total_votes > 0:
+
+    st.write("디저트별 조사 결과")
+
+    result_rows = []
+
+    for dessert in dessert_list:
+
+        count = vote_counts.get(dessert, 0)
+
+        ratings = rating_data.get(dessert, [])
+
+        average = (
+            round(sum(ratings) / len(ratings), 2)
+            if ratings else 0
+        )
+
+        percentage = round(
+            count / total_votes * 100,
+            1
+        )
+
+        result_rows.append({
+            "디저트": dessert,
+            "투표 수": count,
+            "선호 비율(%)": percentage,
+            "평균 선호도": average
+        })
+
+    result_rows.sort(
+        key=lambda row: row["투표 수"],
+        reverse=True
+    )
+
+    st.dataframe(
+        result_rows,
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+
+    st.info("투표가 시작되면 상세 결과가 표시됩니다.")
+
+st.divider()
+
+# ==========================================
+# 10. 조사 결과 CSV 다운로드
+# ==========================================
+
+st.header("💾 6. 조사 결과 다운로드")
+
+if total_votes > 0:
 
     output = io.StringIO()
 
     writer = csv.DictWriter(
         output,
-        fieldnames=["학생", "디저트", "선호도"]
+        fieldnames=[
+            "디저트",
+            "투표 수",
+            "선호 비율(%)",
+            "평균 선호도"
+        ]
     )
 
     writer.writeheader()
-    writer.writerows(data)
+    writer.writerows(result_rows)
 
     st.download_button(
         label="📥 조사 결과 CSV 다운로드",
         data=output.getvalue().encode("utf-8-sig"),
-        file_name="학생별_디저트_선호도.csv",
+        file_name="학생_디저트_선호도_결과.csv",
         mime="text/csv",
         use_container_width=True
     )
 
 else:
-    st.info("다운로드할 조사 결과가 없습니다.")
 
-# =====================================
-# 10. 마무리
-# =====================================
+    st.info("투표 결과가 생기면 다운로드할 수 있습니다.")
 
 st.divider()
 
-st.caption(
-    "데이터 출처: 공공데이터포털 "
-    "- 보성군 차 음식 및 디저트 정보"
+# ==========================================
+# 11. 데이터 출처 및 안내
+# ==========================================
+
+st.header("📚 데이터 출처")
+
+st.write(
+    "디저트 목록 참고 자료: "
+    "공공데이터포털 보성군 차 음식 및 디저트 정보"
+)
+
+st.markdown(
+    "[공공데이터 원본 페이지](https://www.data.go.kr/data/15111850/fileData.do)"
 )
 
 st.caption(
-    "학생별 선호도는 직접 입력한 설문 결과를 활용합니다."
+    "※ 디저트 목록은 공공데이터를 참고하며, "
+    "선호도 결과는 실제 학생들의 익명 투표로 수집합니다."
+)
+
+st.caption(
+    "※ 이 프로그램은 브라우저 세션 기준으로 중복 투표를 제한합니다. "
+    "다른 브라우저나 기기에서의 중복 투표까지 막는 기능은 아닙니다."
 )
